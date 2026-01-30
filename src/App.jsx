@@ -11,12 +11,14 @@ import Dashboard from "./pages/Dashboard";
 import AddExpense from "./pages/AddExpense";
 import AddIncome from "./pages/AddIncome";
 import Transactions from "./pages/Transaction";
+import Categories from "./pages/Categories";
 
-/* 🔐 Protected Route Component */
+/* 🔐 Protected Route */
 const ProtectedRoute = ({ children }) => {
   const token = localStorage.getItem("token");
 
-  if (!token) {
+  if (!token || token === "undefined" || token === "null") {
+    localStorage.removeItem("token");
     return <Navigate to="/login" replace />;
   }
 
@@ -28,16 +30,18 @@ function App() {
     <Router>
       <div className="min-h-screen flex flex-col">
         <Toaster position="top-right" />
+
         <Header />
 
         <main className="flex-grow">
           <Routes>
-            {/* Public Routes */}
+
+            {/* 🌍 Public Routes */}
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
 
-            {/* Protected Routes */}
+            {/* 🔒 Protected Routes */}
             <Route
               path="/dashboard"
               element={
@@ -74,8 +78,19 @@ function App() {
               }
             />
 
-            {/* Fallback */}
-            <Route path="*" element={<Navigate to="/" />} />
+            {/* 📂 Categories */}
+            <Route
+              path="/categories"
+              element={
+                <ProtectedRoute>
+                  <Categories />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* ❓ Fallback */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+
           </Routes>
         </main>
 
