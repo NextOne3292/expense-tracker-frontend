@@ -165,12 +165,12 @@ const Dashboard = () => {
               </p>
             </div>
 
-            <p className={`font-semibold ${
-              tx._type === "expense" ? "text-red-600" : "text-green-600"
-            }`}>
-              {tx._type === "expense" ? "-" : "+"}₹
-              {Number(tx.amount).toLocaleString()}
-            </p>
+           <p className={`font-semibold ${
+  tx.type === "expense" ? "text-red-600" : "text-green-600"
+}`}>
+  {tx.type === "expense" ? "-" : "+"}₹
+  {Number(tx.amount).toLocaleString()}
+</p>
           </div>
         ))}
       </main>

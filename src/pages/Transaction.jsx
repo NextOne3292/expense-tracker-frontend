@@ -1,67 +1,96 @@
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+
 const Transactions = () => {
-  const transactions = [
-    {
-      id: 1,
-      title: "Salary",
-      amount: 25000,
-      type: "income",
-      date: "2025-12-01",
-    },
-    {
-      id: 2,
-      title: "Food",
-      amount: 500,
-      type: "expense",
-      date: "2025-12-02",
-    },
-    {
-      id: 3,
-      title: "Travel",
-      amount: 1200,
-      type: "expense",
-      date: "2025-12-03",
-    },
-  ];
+  const navigate = useNavigate();
+
+  const [transactions, setTransactions] = useState([]);
+  const [filter, setFilter] = useState("all");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const fetchTransactions = async () => {
+      try {
+        const token = localStorage.getItem("token");
+
+        const res = await fetch("http://localhost:3000/api/transactions", {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (res.status === 401 || res.status === 403) {
+          localStorage.removeItem("token");
+          navigate("/login", { replace: true });
+          return;
+        }
+
+        const data = await res.json();
+
+        // backend returns { transactions: [...] } or direct array (depending on your API)
+        setTransactions(data.transactions || data);
+      } catch {
+        setError("Failed to load transactions");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTransactions();
+  }, [navigate]);
+
+  const filteredTransactions =
+    filter === "all"
+      ? transactions
+      : transactions.filter(tx => tx.type === filter);
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto">
+
       <h1 className="text-2xl font-bold mb-6">Transactions</h1>
 
-      {/* Filter row */}
+      {/* Filter */}
       <div className="flex gap-4 mb-6">
-        <select className="border rounded p-2">
-          <option>All</option>
-          <option>Income</option>
-          <option>Expense</option>
+        <select
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          className="border rounded p-2"
+        >
+          <option value="all">All</option>
+          <option value="income">Income</option>
+          <option value="expense">Expense</option>
         </select>
       </div>
 
-      {/* Empty state */}
-      {transactions.length === 0 && (
+      {loading && <p className="text-gray-400">Loading...</p>}
+
+      {error && (
+        <p className="text-red-500">{error}</p>
+      )}
+
+      {!loading && filteredTransactions.length === 0 && (
         <p className="text-sm text-gray-400">No transactions found</p>
       )}
 
-      {/* Transaction list */}
       <div className="space-y-3">
-        {transactions.map((transaction) => (
+        {filteredTransactions.map(tx => (
           <div
-            key={transaction.id}
-            className="flex justify-between items-center border rounded p-4"
+            key={tx._id}
+            className="flex justify-between items-center border rounded p-4 bg-white"
           >
             <div>
-              <p className="font-medium">{transaction.title}</p>
-              <p className="text-sm text-gray-500">{transaction.date}</p>
+              <p className="font-medium">
+                {tx.category?.title || tx.title}
+              </p>
+              <p className="text-sm text-gray-500">
+                {new Date(tx.date).toDateString()}
+              </p>
             </div>
 
-            <p
-              className={
-                transaction.type === "income"
-                  ? "text-green-600 font-semibold"
-                  : "text-red-600 font-semibold"
-              }
-            >
-              {transaction.type === "income" ? "+" : "-"}₹
-              {transaction.amount.toLocaleString()}
+            <p className={`font-semibold ${
+              tx.type === "expense" ? "text-red-600" : "text-green-600"
+            }`}>
+              {tx.type === "expense" ? "-" : "+"}₹
+              {Number(tx.amount).toLocaleString()}
             </p>
           </div>
         ))}

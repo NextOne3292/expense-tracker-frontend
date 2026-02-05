@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+const API = "http://localhost:3000/api/categories";
+
 const Categories = () => {
   const navigate = useNavigate();
 
@@ -14,18 +16,33 @@ const Categories = () => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
-  const token = localStorage.getItem("token");
+  const authHeaders = () => ({
+    Authorization: `Bearer ${localStorage.getItem("token")}`
+  });
+
+  const checkAuth = () => {
+    if (!localStorage.getItem("token")) {
+      navigate("/login", { replace: true });
+      return false;
+    }
+    return true;
+  };
 
   const fetchCategories = async () => {
+    if (!checkAuth()) return;
+
     try {
-      const res = await fetch("http://localhost:3000/api/categories", {
-        headers: { Authorization: `Bearer ${token}` }
+      const res = await fetch(API, {
+        headers: authHeaders()
       });
 
-      if (res.status === 401 || res.status === 403) {
-        localStorage.removeItem("token");
-        navigate("/login", { replace: true });
-        return;
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+          localStorage.removeItem("token");
+          navigate("/login", { replace: true });
+          return;
+        }
+        throw new Error();
       }
 
       const data = await res.json();
@@ -50,33 +67,43 @@ const Categories = () => {
       return;
     }
 
-    const url = editingId
-      ? `http://localhost:3000/api/categories/${editingId}`
-      : "http://localhost:3000/api/categories";
+    if (!checkAuth()) return;
 
+    const url = editingId ? `${API}/${editingId}` : API;
     const method = editingId ? "PUT" : "POST";
 
-    const res = await fetch(url, {
-      method,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        title: title.trim(),
-        type,
-        color
-      })
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders()
+        },
+        body: JSON.stringify({ title: title.trim(), type, color })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || "Action failed");
+      }
+
+      resetForm();
+      fetchCategories();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("Delete this category?")) return;
+    if (!checkAuth()) return;
+
+    await fetch(`${API}/${id}`, {
+      method: "DELETE",
+      headers: authHeaders()
     });
 
-    const data = await res.json();
-
-    if (!res.ok) {
-      setError(data.message || "Action failed");
-      return;
-    }
-
-    resetForm();
     fetchCategories();
   };
 
@@ -85,17 +112,6 @@ const Categories = () => {
     setTitle(cat.title);
     setType(cat.type);
     setColor(cat.color || "#3b82f6");
-  };
-
-  const handleDelete = async (id) => {
-    if (!window.confirm("Delete this category?")) return;
-
-    await fetch(`http://localhost:3000/api/categories/${id}`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${token}` }
-    });
-
-    fetchCategories();
   };
 
   const resetForm = () => {
@@ -116,7 +132,6 @@ const Categories = () => {
         </div>
       )}
 
-      {/* Form */}
       <form
         onSubmit={handleSubmit}
         className="bg-white shadow rounded-lg p-5 mb-8 space-y-4"
@@ -163,7 +178,6 @@ const Categories = () => {
         </div>
       </form>
 
-      {/* List */}
       {loading ? (
         <p>Loading...</p>
       ) : (
