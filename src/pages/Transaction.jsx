@@ -14,9 +14,12 @@ const Transactions = () => {
       try {
         const token = localStorage.getItem("token");
 
-        const res = await fetch("http://localhost:3000/api/transactions", {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        const res = await fetch(
+          `http://localhost:3000/api/transactions${
+            filter !== "all" ? `?type=${filter}` : ""
+          }`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
 
         if (res.status === 401 || res.status === 403) {
           localStorage.removeItem("token");
@@ -25,9 +28,7 @@ const Transactions = () => {
         }
 
         const data = await res.json();
-
-        // backend returns { transactions: [...] } or direct array (depending on your API)
-        setTransactions(data.transactions || data);
+        setTransactions(data);
       } catch {
         setError("Failed to load transactions");
       } finally {
@@ -36,12 +37,7 @@ const Transactions = () => {
     };
 
     fetchTransactions();
-  }, [navigate]);
-
-  const filteredTransactions =
-    filter === "all"
-      ? transactions
-      : transactions.filter(tx => tx.type === filter);
+  }, [filter, navigate]);
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto">
@@ -62,17 +58,14 @@ const Transactions = () => {
       </div>
 
       {loading && <p className="text-gray-400">Loading...</p>}
+      {error && <p className="text-red-500">{error}</p>}
 
-      {error && (
-        <p className="text-red-500">{error}</p>
-      )}
-
-      {!loading && filteredTransactions.length === 0 && (
+      {!loading && transactions.length === 0 && (
         <p className="text-sm text-gray-400">No transactions found</p>
       )}
 
       <div className="space-y-3">
-        {filteredTransactions.map(tx => (
+        {transactions.map(tx => (
           <div
             key={tx._id}
             className="flex justify-between items-center border rounded p-4 bg-white"

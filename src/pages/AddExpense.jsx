@@ -13,64 +13,57 @@ const AddExpense = () => {
   });
 
   const [categories, setCategories] = useState([]);
+  const [recentExpenses, setRecentExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
 
-  const successSound = new Audio("/success.mp3");
-
-  /* -------- Fetch categories -------- */
+  /* Fetch categories */
   useEffect(() => {
     const fetchCategories = async () => {
-      try {
-        const token = localStorage.getItem("token");
+      const token = localStorage.getItem("token");
 
-        const res = await fetch("http://localhost:3000/api/categories", {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        });
+      const res = await fetch("http://localhost:3000/api/categories", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
 
-        if (res.status === 401 || res.status === 403) {
-          localStorage.removeItem("token");
-          navigate("/login", { replace: true });
-          return;
-        }
+      if (!res.ok) return;
 
-        const data = await res.json();
-
-        if (!res.ok) throw new Error(data.message);
-
-        const expenseCategories = data.filter(
-          cat => cat.type?.toLowerCase() === "expense"
-        );
-
-        setCategories(expenseCategories);
-      } catch {
-        setError("Failed to load categories");
-      } finally {
-        setLoading(false);
-      }
+      const data = await res.json();
+      setCategories(data.filter(c => c.type === "expense"));
+      setLoading(false);
     };
 
     fetchCategories();
-  }, [navigate]);
+  }, []);
 
-  /* -------- Input handler -------- */
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setExpense(prev => ({ ...prev, [name]: value }));
+  /* Fetch recent expenses */
+  useEffect(() => {
+    const fetchRecent = async () => {
+      const token = localStorage.getItem("token");
+
+      const res = await fetch("http://localhost:3000/api/expenses?limit=5", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (!res.ok) return;
+
+      const data = await res.json();
+      setRecentExpenses(data);
+    };
+
+    fetchRecent();
+  }, []);
+
+  /* Input handler */
+  const handleChange = e => {
+    setExpense(prev => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
-  /* -------- Submit -------- */
-  const handleSubmit = async (e) => {
+  /* Submit */
+  const handleSubmit = async e => {
     e.preventDefault();
     setError("");
-
-    if (!expense.category) {
-      setError("Select a category");
-      return;
-    }
 
     try {
       const token = localStorage.getItem("token");
@@ -82,29 +75,19 @@ const AddExpense = () => {
           Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
-          title: expense.title.trim(),
-          amount: Number(expense.amount),
-          category: expense.category,
-          date: expense.date,
-          note: expense.note.trim()
+          ...expense,
+          amount: Number(expense.amount)
         })
       });
-
-      if (res.status === 401 || res.status === 403) {
-        localStorage.removeItem("token");
-        navigate("/login", { replace: true });
-        return;
-      }
 
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.message || "Failed to add expense");
+        setError(data.message);
         return;
       }
 
-      successSound.play();
-      setSuccess(true);
+      setRecentExpenses(prev => [data, ...prev.slice(0, 4)]);
 
       setExpense({
         title: "",
@@ -114,7 +97,8 @@ const AddExpense = () => {
         note: ""
       });
 
-      setTimeout(() => setSuccess(false), 2000);
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 1500);
     } catch {
       setError("Server error");
     }
@@ -122,45 +106,24 @@ const AddExpense = () => {
 
   return (
     <div className="p-6 max-w-xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">Add Expense</h1>
+
+      <h1 className="text-2xl font-bold mb-4">Add Expense</h1>
 
       {success && (
-        <div className="bg-green-100 text-green-700 p-3 rounded mb-4">
+        <div className="bg-green-100 text-green-700 p-3 rounded mb-3">
           Expense added successfully
         </div>
       )}
 
       {error && (
-        <div className="bg-red-100 text-red-700 p-3 rounded mb-4">
+        <div className="bg-red-100 text-red-700 p-3 rounded mb-3">
           {error}
         </div>
       )}
 
-      {/* Empty state UI */}
-      {!loading && categories.length === 0 && (
-        <div className="border border-dashed rounded-lg p-6 text-center bg-gray-50 mb-6">
-          <p className="text-lg font-semibold text-gray-700">
-            No categories yet
-          </p>
-          <p className="text-sm text-gray-500 mt-1">
-            Create a category to start tracking expenses
-          </p>
-
-          <button
-            onClick={() => navigate("/categories")}
-            className="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
-            type="button"
-          >
-            + Add Category
-          </button>
-        </div>
-      )}
-
-      {/* Form */}
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-3">
 
         <input
-          type="text"
           name="title"
           placeholder="Expense name"
           value={expense.title}
@@ -176,8 +139,6 @@ const AddExpense = () => {
           value={expense.amount}
           onChange={handleChange}
           className="w-full border p-2 rounded"
-          min="0.01"
-          step="0.01"
           required
         />
 
@@ -185,8 +146,7 @@ const AddExpense = () => {
           name="category"
           value={expense.category}
           onChange={handleChange}
-          disabled={categories.length === 0}
-          className="w-full border p-2 rounded disabled:bg-gray-100"
+          className="w-full border p-2 rounded"
           required
         >
           <option value="">Select category</option>
@@ -215,12 +175,37 @@ const AddExpense = () => {
 
         <button
           type="submit"
-          disabled={categories.length === 0}
-          className="w-full bg-red-600 text-white p-3 rounded hover:bg-red-700 disabled:opacity-50"
+          className="w-full bg-red-600 text-white p-2 rounded hover:bg-red-700"
         >
           Save Expense
         </button>
       </form>
+
+      {/* Recent expenses */}
+      {recentExpenses.length > 0 && (
+        <div className="mt-8">
+
+          <div className="flex justify-between items-center mb-3">
+            <h2 className="font-semibold">Recent Expenses</h2>
+
+            <button
+              onClick={() => navigate("/transactions?type=expense")}
+              className="text-blue-600 text-sm hover:underline"
+            >
+              See all
+            </button>
+          </div>
+
+          {recentExpenses.map(exp => (
+            <div key={exp._id} className="flex justify-between border-b py-2">
+              <span>{exp.title}</span>
+              <span className="text-red-600 font-medium">
+                ₹{exp.amount}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
