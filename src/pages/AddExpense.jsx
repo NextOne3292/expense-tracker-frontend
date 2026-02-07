@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
+
+/* 🔊 success sound (public/success.mp3) */
+const successSound = new Audio("/success.mp3");
 
 const AddExpense = () => {
   const navigate = useNavigate();
@@ -14,60 +18,67 @@ const AddExpense = () => {
 
   const [categories, setCategories] = useState([]);
   const [recentExpenses, setRecentExpenses] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  /* Fetch categories */
+  /* ---------------- Fetch categories ---------------- */
   useEffect(() => {
     const fetchCategories = async () => {
       const token = localStorage.getItem("token");
 
-      const res = await fetch("http://localhost:3000/api/categories", {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      try {
+        const res = await fetch("http://localhost:3000/api/categories", {
+          headers: { Authorization: `Bearer ${token}` }
+        });
 
-      if (!res.ok) return;
+        if (!res.ok) throw new Error();
 
-      const data = await res.json();
-      setCategories(data.filter(c => c.type === "expense"));
-      setLoading(false);
+        const data = await res.json();
+        setCategories(data.filter(cat => cat.type === "expense"));
+      } catch {
+        toast.error("Failed to load categories");
+      }
     };
 
     fetchCategories();
   }, []);
 
-  /* Fetch recent expenses */
+  /* ---------------- Fetch recent expenses ---------------- */
   useEffect(() => {
-    const fetchRecent = async () => {
+    const fetchRecentExpenses = async () => {
       const token = localStorage.getItem("token");
 
-      const res = await fetch("http://localhost:3000/api/expenses?limit=5", {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      try {
+        const res = await fetch(
+          "http://localhost:3000/api/expenses?limit=5",
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
 
-      if (!res.ok) return;
+        if (!res.ok) return;
 
-      const data = await res.json();
-      setRecentExpenses(data);
+        const data = await res.json();
+        setRecentExpenses(data);
+      } catch {
+        // silent fail (not critical)
+      }
     };
 
-    fetchRecent();
+    fetchRecentExpenses();
   }, []);
 
-  /* Input handler */
-  const handleChange = e => {
-    setExpense(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  /* ---------------- Input handler ---------------- */
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setExpense(prev => ({ ...prev, [name]: value }));
   };
 
-  /* Submit */
-  const handleSubmit = async e => {
+  /* ---------------- Submit ---------------- */
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setError("");
+    setLoading(true);
+
+    const token = localStorage.getItem("token");
 
     try {
-      const token = localStorage.getItem("token");
-
       const res = await fetch("http://localhost:3000/api/expenses", {
         method: "POST",
         headers: {
@@ -83,9 +94,15 @@ const AddExpense = () => {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.message);
+        toast.error(data.message || "Failed to add expense");
         return;
       }
+
+      /* 🔊 play success sound */
+      successSound.currentTime = 0;
+      successSound.play();
+
+      toast.success("Expense added successfully");
 
       setRecentExpenses(prev => [data, ...prev.slice(0, 4)]);
 
@@ -97,10 +114,10 @@ const AddExpense = () => {
         note: ""
       });
 
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 1500);
     } catch {
-      setError("Server error");
+      toast.error("Server error");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -108,18 +125,6 @@ const AddExpense = () => {
     <div className="p-6 max-w-xl mx-auto">
 
       <h1 className="text-2xl font-bold mb-4">Add Expense</h1>
-
-      {success && (
-        <div className="bg-green-100 text-green-700 p-3 rounded mb-3">
-          Expense added successfully
-        </div>
-      )}
-
-      {error && (
-        <div className="bg-red-100 text-red-700 p-3 rounded mb-3">
-          {error}
-        </div>
-      )}
 
       <form onSubmit={handleSubmit} className="space-y-3">
 
@@ -175,13 +180,14 @@ const AddExpense = () => {
 
         <button
           type="submit"
-          className="w-full bg-red-600 text-white p-2 rounded hover:bg-red-700"
+          disabled={loading}
+          className="w-full bg-red-600 text-white p-2 rounded hover:bg-red-700 disabled:opacity-50"
         >
-          Save Expense
+          {loading ? "Saving..." : "Save Expense"}
         </button>
       </form>
 
-      {/* Recent expenses */}
+      {/* ---------------- Recent Expenses ---------------- */}
       {recentExpenses.length > 0 && (
         <div className="mt-8">
 

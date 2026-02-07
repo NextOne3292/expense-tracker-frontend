@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
+
+/* 🔊 success sound */
+const successSound = new Audio("/success.mp3");
 
 const AddIncome = () => {
   const navigate = useNavigate();
@@ -13,44 +17,53 @@ const AddIncome = () => {
   });
 
   const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState("");
+  const [recentIncome, setRecentIncome] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  /* -------- Fetch categories -------- */
+  /* -------- Fetch income categories -------- */
   useEffect(() => {
     const fetchCategories = async () => {
-      try {
-        const token = localStorage.getItem("token");
+      const token = localStorage.getItem("token");
 
+      try {
         const res = await fetch("http://localhost:3000/api/categories", {
           headers: { Authorization: `Bearer ${token}` }
         });
 
-        if (res.status === 401 || res.status === 403) {
-          localStorage.removeItem("token");
-          navigate("/login", { replace: true });
-          return;
-        }
+        if (!res.ok) throw new Error();
 
         const data = await res.json();
-
-        if (!res.ok) throw new Error(data.message);
-
-        const incomeCategories = data.filter(
-          cat => cat.type?.toLowerCase() === "income"
-        );
-
-        setCategories(incomeCategories);
+        setCategories(data.filter(cat => cat.type === "income"));
       } catch {
-        setError("Failed to load categories");
-      } finally {
-        setLoading(false);
+        toast.error("Failed to load income categories");
       }
     };
 
     fetchCategories();
-  }, [navigate]);
+  }, []);
+
+  /* -------- Fetch recent income -------- */
+  useEffect(() => {
+    const fetchRecentIncome = async () => {
+      const token = localStorage.getItem("token");
+
+      try {
+        const res = await fetch(
+          "http://localhost:3000/api/income",
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+
+        if (!res.ok) return;
+
+        const data = await res.json();
+        setRecentIncome(data.slice(0, 5));
+      } catch {
+        // silent fail
+      }
+    };
+
+    fetchRecentIncome();
+  }, []);
 
   /* -------- Input handler -------- */
   const handleChange = (e) => {
@@ -61,16 +74,11 @@ const AddIncome = () => {
   /* -------- Submit -------- */
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError("");
+    setLoading(true);
 
-    if (!income.category) {
-      setError("Select a category");
-      return;
-    }
+    const token = localStorage.getItem("token");
 
     try {
-      const token = localStorage.getItem("token");
-
       const res = await fetch("http://localhost:3000/api/income", {
         method: "POST",
         headers: {
@@ -78,28 +86,25 @@ const AddIncome = () => {
           Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
-          title: income.title.trim(),
-          amount: Number(income.amount),
-          category: income.category,
-          date: income.date,
-          note: income.note.trim()
+          ...income,
+          amount: Number(income.amount)
         })
       });
-
-      if (res.status === 401 || res.status === 403) {
-        localStorage.removeItem("token");
-        navigate("/login", { replace: true });
-        return;
-      }
 
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.message || "Failed to add income");
+        toast.error(data.message || "Failed to add income");
         return;
       }
 
-      setSuccess(true);
+      /* 🔊 play success sound */
+      successSound.currentTime = 0;
+      successSound.play();
+
+      toast.success("Income added successfully");
+
+      setRecentIncome(prev => [data, ...prev.slice(0, 4)]);
 
       setIncome({
         title: "",
@@ -109,27 +114,17 @@ const AddIncome = () => {
         note: ""
       });
 
-      setTimeout(() => setSuccess(false), 2000);
     } catch {
-      setError("Server error");
+      toast.error("Server error");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <div className="p-6 max-w-xl mx-auto">
+
       <h1 className="text-2xl font-bold mb-6">Add Income</h1>
-
-      {success && (
-        <div className="bg-green-100 text-green-700 p-3 rounded mb-4">
-          Income added successfully
-        </div>
-      )}
-
-      {error && (
-        <div className="bg-red-100 text-red-700 p-3 rounded mb-4">
-          {error}
-        </div>
-      )}
 
       {/* Empty state */}
       {!loading && categories.length === 0 && (
@@ -155,7 +150,6 @@ const AddIncome = () => {
       <form onSubmit={handleSubmit} className="space-y-4">
 
         <input
-          type="text"
           name="title"
           placeholder="Income source"
           value={income.title}
@@ -171,8 +165,6 @@ const AddIncome = () => {
           value={income.amount}
           onChange={handleChange}
           className="w-full border p-2 rounded"
-          min="0.01"
-          step="0.01"
           required
         />
 
@@ -208,14 +200,41 @@ const AddIncome = () => {
           className="w-full border p-2 rounded"
         />
 
+        {/* ✅ GREEN button */}
         <button
           type="submit"
-          disabled={categories.length === 0}
-          className="w-full bg-slate-900 text-white p-3 rounded hover:bg-slate-800 disabled:opacity-50"
+          disabled={loading || categories.length === 0}
+          className="w-full bg-green-600 text-white p-3 rounded hover:bg-green-700 disabled:opacity-50"
         >
-          Save Income
+          {loading ? "Saving..." : "Save Income"}
         </button>
       </form>
+
+      {/* -------- Recent Income -------- */}
+      {recentIncome.length > 0 && (
+        <div className="mt-8">
+
+          <div className="flex justify-between items-center mb-3">
+            <h2 className="font-semibold">Recent Income</h2>
+
+            <button
+              onClick={() => navigate("/transactions?type=income")}
+              className="text-blue-600 text-sm hover:underline"
+            >
+              See all
+            </button>
+          </div>
+
+          {recentIncome.map(inc => (
+            <div key={inc._id} className="flex justify-between border-b py-2">
+              <span>{inc.title}</span>
+              <span className="text-green-600 font-medium">
+                ₹{inc.amount}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

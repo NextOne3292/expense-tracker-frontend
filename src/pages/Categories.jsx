@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
 
 const API = "http://localhost:3000/api/categories";
+
+/* 🔊 success sound */
+const successSound = new Audio("/success.mp3");
 
 const Categories = () => {
   const navigate = useNavigate();
@@ -13,24 +17,24 @@ const Categories = () => {
   const [categories, setCategories] = useState([]);
   const [filter, setFilter] = useState("all");
   const [editingId, setEditingId] = useState(null);
-
-  const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
   const authHeaders = () => ({
     Authorization: `Bearer ${localStorage.getItem("token")}`
   });
 
+  /* ---------- Fetch categories ---------- */
   const fetchCategories = async () => {
     try {
-      const url =
-        filter === "all" ? API : `${API}?type=${filter}`;
-
+      const url = filter === "all" ? API : `${API}?type=${filter}`;
       const res = await fetch(url, { headers: authHeaders() });
+
+      if (!res.ok) throw new Error();
+
       const data = await res.json();
       setCategories(data);
     } catch {
-      setError("Failed to load categories");
+      toast.error("Failed to load categories");
     } finally {
       setLoading(false);
     }
@@ -40,39 +44,86 @@ const Categories = () => {
     fetchCategories();
   }, [filter]);
 
+  /* ---------- Add / Update ---------- */
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!title.trim()) {
+      toast.error("Category name required");
+      return;
+    }
 
     const url = editingId ? `${API}/${editingId}` : API;
     const method = editingId ? "PUT" : "POST";
 
-    await fetch(url, {
-      method,
-      headers: {
-        "Content-Type": "application/json",
-        ...authHeaders()
-      },
-      body: JSON.stringify({ title: title.trim(), type, color })
-    });
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders()
+        },
+        body: JSON.stringify({
+          title: title.trim(),
+          type,
+          color
+        })
+      });
 
-    resetForm();
-    fetchCategories();
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.message || "Action failed");
+        return;
+      }
+
+      successSound.currentTime = 0;
+      successSound.play();
+
+      toast.success(
+        editingId ? "Category updated" : "Category added"
+      );
+
+      resetForm();
+      fetchCategories();
+    } catch {
+      toast.error("Server error");
+    }
   };
 
+  /* ---------- Delete ---------- */
   const handleDelete = async (id) => {
-    await fetch(`${API}/${id}`, {
-      method: "DELETE",
-      headers: authHeaders()
-    });
+    if (!window.confirm("Delete this category?")) return;
 
-    fetchCategories();
+    try {
+      const res = await fetch(`${API}/${id}`, {
+        method: "DELETE",
+        headers: authHeaders()
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.message || "Delete failed");
+        return;
+      }
+
+      successSound.currentTime = 0;
+      successSound.play();
+
+      toast.success("Category deleted");
+      fetchCategories();
+    } catch {
+      toast.error("Server error");
+    }
   };
 
+  /* ---------- Edit ---------- */
   const startEdit = (cat) => {
     setEditingId(cat._id);
     setTitle(cat.title);
     setType(cat.type);
-    setColor(cat.color);
+    setColor(cat.color || "#3b82f6");
   };
 
   const resetForm = () => {
@@ -100,8 +151,11 @@ const Categories = () => {
         </select>
       </div>
 
-      <form onSubmit={handleSubmit} className="bg-white p-4 rounded mb-6 space-y-3">
-
+      {/* Form */}
+      <form
+        onSubmit={handleSubmit}
+        className="bg-white p-4 rounded mb-6 space-y-3"
+      >
         <input
           placeholder="Category name"
           value={title}
@@ -127,38 +181,49 @@ const Categories = () => {
         </div>
 
         <button className="bg-blue-600 text-white p-2 rounded w-full">
-          {editingId ? "Update" : "Add"}
+          {editingId ? "Update Category" : "Add Category"}
         </button>
       </form>
 
-      {categories.map(cat => (
-        <div
-          key={cat._id}
-          className="flex justify-between items-center border rounded p-3 mb-2"
-        >
-          <div className="flex items-center gap-2">
-            <span
-              className="w-4 h-4 rounded-full"
-              style={{ background: cat.color }}
-            />
-            <span>{cat.title}</span>
-            <span className="text-xs text-gray-500">
-              {cat.type}
-            </span>
-          </div>
-
-          {!cat.isDefault && (
-            <div className="flex gap-3">
-              <button onClick={() => startEdit(cat)} className="text-blue-600">
-                Edit
-              </button>
-              <button onClick={() => handleDelete(cat._id)} className="text-red-600">
-                Delete
-              </button>
+      {/* List */}
+      {loading ? (
+        <p>Loading...</p>
+      ) : (
+        categories.map(cat => (
+          <div
+            key={cat._id}
+            className="flex justify-between items-center border rounded p-3 mb-2"
+          >
+            <div className="flex items-center gap-2">
+              <span
+                className="w-4 h-4 rounded-full"
+                style={{ background: cat.color }}
+              />
+              <span>{cat.title}</span>
+              <span className="text-xs text-gray-500">
+                {cat.type}
+              </span>
             </div>
-          )}
-        </div>
-      ))}
+
+            {!cat.isDefault && (
+              <div className="flex gap-3">
+                <button
+                  onClick={() => startEdit(cat)}
+                  className="text-blue-600"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => handleDelete(cat._id)}
+                  className="text-red-600"
+                >
+                  Delete
+                </button>
+              </div>
+            )}
+          </div>
+        ))
+      )}
     </div>
   );
 };

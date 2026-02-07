@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
+
+/* 🔊 success sound */
+const successSound = new Audio("/success.mp3");
 
 const Transactions = () => {
   const navigate = useNavigate();
@@ -9,35 +13,87 @@ const Transactions = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    const fetchTransactions = async () => {
-      try {
-        const token = localStorage.getItem("token");
+  const token = localStorage.getItem("token");
 
-        const res = await fetch(
-          `http://localhost:3000/api/transactions${
-            filter !== "all" ? `?type=${filter}` : ""
-          }`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+  /* -------- Fetch transactions -------- */
+  const fetchTransactions = async () => {
+    try {
+      setLoading(true);
 
-        if (res.status === 401 || res.status === 403) {
-          localStorage.removeItem("token");
-          navigate("/login", { replace: true });
-          return;
+      const res = await fetch(
+        `http://localhost:3000/api/transactions${
+          filter !== "all" ? `?type=${filter}` : ""
+        }`,
+        {
+          headers: { Authorization: `Bearer ${token}` }
         }
+      );
 
-        const data = await res.json();
-        setTransactions(data);
-      } catch {
-        setError("Failed to load transactions");
-      } finally {
-        setLoading(false);
+      if (res.status === 401 || res.status === 403) {
+        localStorage.removeItem("token");
+        navigate("/login", { replace: true });
+        return;
       }
-    };
 
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.message || "Failed to load transactions");
+        return;
+      }
+
+      setTransactions(data);
+    } catch {
+      setError("Failed to load transactions");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchTransactions();
-  }, [filter, navigate]);
+  }, [filter]);
+
+  /* -------- Delete -------- */
+  const handleDelete = async (tx) => {
+    if (!window.confirm("Delete this transaction?")) return;
+
+    const url =
+      tx.type === "income"
+        ? `http://localhost:3000/api/income/${tx._id}`
+        : `http://localhost:3000/api/expenses/${tx._id}`;
+
+    try {
+      const res = await fetch(url, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.message || "Delete failed");
+        return;
+      }
+
+      successSound.currentTime = 0;
+      successSound.play();
+
+      toast.success("Transaction deleted");
+      fetchTransactions();
+    } catch {
+      toast.error("Server error");
+    }
+  };
+
+  /* -------- Edit -------- */
+  const handleEdit = (tx) => {
+    if (tx.type === "income") {
+      navigate(`/add-income?edit=${tx._id}`);
+    } else {
+      navigate(`/add-expense?edit=${tx._id}`);
+    }
+  };
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto">
@@ -45,7 +101,7 @@ const Transactions = () => {
       <h1 className="text-2xl font-bold mb-6">Transactions</h1>
 
       {/* Filter */}
-      <div className="flex gap-4 mb-6">
+      <div className="mb-6">
         <select
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
@@ -64,27 +120,65 @@ const Transactions = () => {
         <p className="text-sm text-gray-400">No transactions found</p>
       )}
 
-      <div className="space-y-3">
+      <div className="space-y-4">
         {transactions.map(tx => (
           <div
             key={tx._id}
-            className="flex justify-between items-center border rounded p-4 bg-white"
+            className="border rounded p-4 bg-white"
           >
-            <div>
-              <p className="font-medium">
-                {tx.category?.title || tx.title}
-              </p>
-              <p className="text-sm text-gray-500">
-                {new Date(tx.date).toDateString()}
-              </p>
+
+            {/* Header */}
+            <div className="flex justify-between">
+              <h3 className="font-semibold">{tx.title}</h3>
+              <span
+                className={`font-medium ${
+                  tx.type === "income"
+                    ? "text-green-600"
+                    : "text-red-600"
+                }`}
+              >
+                {tx.type === "income" ? "+" : "-"}₹
+                {Number(tx.amount).toLocaleString()}
+              </span>
             </div>
 
-            <p className={`font-semibold ${
-              tx.type === "expense" ? "text-red-600" : "text-green-600"
-            }`}>
-              {tx.type === "expense" ? "-" : "+"}₹
-              {Number(tx.amount).toLocaleString()}
-            </p>
+            {/* Meta */}
+            <div className="text-sm text-gray-500 mt-1 flex gap-2 items-center">
+              <span>{new Date(tx.date).toLocaleDateString()}</span>
+
+              {tx.category && (
+                <span
+                  className="px-2 py-0.5 rounded text-white text-xs"
+                  style={{ backgroundColor: tx.category.color }}
+                >
+                  {tx.category.title}
+                </span>
+              )}
+            </div>
+
+            {/* Note */}
+            {tx.note && (
+              <p className="text-sm text-gray-700 mt-2">
+                📝 {tx.note}
+              </p>
+            )}
+
+            {/* Actions */}
+            <div className="flex gap-4 mt-3 text-sm">
+              <button
+                onClick={() => handleEdit(tx)}
+                className="text-blue-600 hover:underline"
+              >
+                Edit
+              </button>
+              <button
+                onClick={() => handleDelete(tx)}
+                className="text-red-600 hover:underline"
+              >
+                Delete
+              </button>
+            </div>
+
           </div>
         ))}
       </div>
