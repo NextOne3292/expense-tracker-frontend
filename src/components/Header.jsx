@@ -1,26 +1,31 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
+
+/* 🔊 success sound */
+const successSound = new Audio("/success.mp3");
 
 const Header = () => {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [isAuth, setIsAuth] = useState(false);
-
   const navigate = useNavigate();
 
-  // check auth status on load
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    setIsAuth(!!token);
-  }, []);
+  // auth check (derived from token)
+  const isAuth = !!localStorage.getItem("token");
 
+  /* ---------- Logout ---------- */
   const handleLogout = () => {
     localStorage.removeItem("token");
-    setIsAuth(false);
+
+    successSound.currentTime = 0;
+    successSound.play();
+
+    toast.success("Logged out successfully");
+    setMenuOpen(false);
     navigate("/login");
   };
 
   return (
-    <header className="bg-slate-900 text-white shadow-md">
+    <header className="bg-slate-900 text-white shadow-md relative z-50">
       <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
 
         {/* Logo */}
@@ -34,33 +39,22 @@ const Header = () => {
         <nav className="hidden md:flex items-center gap-8">
           {!isAuth ? (
             <>
-              <Link
-                to="/login"
-                className="text-sm font-medium hover:text-slate-300 transition"
-              >
+              <Link to="/login" className="hover:text-slate-300">
                 Login
               </Link>
-
               <Link
                 to="/register"
-                className="px-4 py-2 text-sm font-medium rounded-md bg-slate-700 hover:bg-slate-600 transition"
+                className="px-4 py-2 rounded-md bg-slate-700 hover:bg-slate-600"
               >
                 Register
               </Link>
             </>
           ) : (
             <>
-              <Link
-                to="/dashboard"
-                className="text-sm font-medium hover:text-slate-300 transition"
-              >
+              <Link to="/dashboard" className="hover:text-slate-300">
                 Dashboard
               </Link>
-
-              <button
-                onClick={handleLogout}
-                className="text-sm font-medium hover:text-slate-300 transition"
-              >
+              <button onClick={handleLogout} className="hover:text-slate-300">
                 Logout
               </button>
             </>
@@ -69,33 +63,54 @@ const Header = () => {
 
         {/* Mobile Menu Button */}
         <button
-          className="md:hidden"
+          className="md:hidden text-2xl"
           onClick={() => setMenuOpen(!menuOpen)}
         >
           ☰
         </button>
       </div>
 
-      {/* Mobile Menu */}
+      {/* Mobile Dropdown Menu */}
       {menuOpen && (
-        <div className="md:hidden bg-slate-800 px-6 py-4 space-y-4">
+        <div className="md:hidden absolute top-full left-0 w-full bg-slate-800 px-4 py-2 space-y-2 shadow-lg">
+
           {!isAuth ? (
             <>
-              <Link to="/login" onClick={() => setMenuOpen(false)}>
+              <Link
+                to="/login"
+                onClick={() => setMenuOpen(false)}
+                className="block w-full px-3 py-1.5 text-sm rounded hover:bg-slate-700"
+              >
                 Login
               </Link>
-              <Link to="/register" onClick={() => setMenuOpen(false)}>
+
+              <Link
+                to="/register"
+                onClick={() => setMenuOpen(false)}
+                className="block w-full px-3 py-1.5 text-sm rounded hover:bg-slate-700"
+              >
                 Register
               </Link>
             </>
           ) : (
             <>
-              <Link to="/dashboard" onClick={() => setMenuOpen(false)}>
+              <Link
+                to="/dashboard"
+                onClick={() => setMenuOpen(false)}
+                className="block w-full px-3 py-1.5 text-sm rounded hover:bg-slate-700"
+              >
                 Dashboard
               </Link>
-              <button onClick={handleLogout}>Logout</button>
+
+              <button
+                onClick={handleLogout}
+                className="block w-full text-left px-3 py-1.5 text-sm rounded hover:bg-slate-700"
+              >
+                Logout
+              </button>
             </>
           )}
+
         </div>
       )}
     </header>

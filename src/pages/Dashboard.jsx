@@ -56,6 +56,7 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [totals, setTotals] = useState({ income: 0, expense: 0, balance: 0 });
   const [recent, setRecent] = useState([]);
+  const [userName, setUserName] = useState(""); // ✅ added
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -74,8 +75,14 @@ const Dashboard = () => {
         }
 
         const data = await res.json();
+        
+
+        // ✅ set user name
+        setUserName(data.user?.name || "");
+
         setTotals(data.totals);
         setRecent(data.recent);
+
       } catch {
         setError("Failed to load dashboard data");
       } finally {
@@ -91,7 +98,6 @@ const Dashboard = () => {
 
       <Sidebar open={sidebarOpen} navigate={navigate} />
 
-      {/* Overlay on mobile */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 bg-black bg-opacity-30 md:hidden"
@@ -109,12 +115,14 @@ const Dashboard = () => {
           >
             ☰
           </button>
-          <h1 className="font-bold text-lg">Dashboard</h1>
+          <h1 className="font-bold text-lg">
+            Welcome, {userName}
+          </h1>
         </div>
 
         {/* Desktop Title */}
         <h1 className="hidden md:block text-2xl font-bold mb-6">
-          Dashboard
+          Welcome, {userName}
         </h1>
 
         {error && (
@@ -141,9 +149,18 @@ const Dashboard = () => {
         </div>
 
         {/* Recent Transactions */}
-        <h2 className="text-xl font-semibold mb-4">
-          Recent Transactions
-        </h2>
+       <div className="flex justify-between items-center mb-4">
+  <h2 className="text-xl font-semibold">
+    Recent Transactions
+  </h2>
+
+  <button
+    onClick={() => navigate("/transactions")}
+    className="text-blue-600 hover:underline text-sm font-medium"
+  >
+    See all
+  </button>
+</div>
 
         {loading && <Skeleton />}
 
@@ -165,14 +182,15 @@ const Dashboard = () => {
               </p>
             </div>
 
-           <p className={`font-semibold ${
-  tx.type === "expense" ? "text-red-600" : "text-green-600"
-}`}>
-  {tx.type === "expense" ? "-" : "+"}₹
-  {Number(tx.amount).toLocaleString()}
-</p>
+            <p className={`font-semibold ${
+              tx.type === "expense" ? "text-red-600" : "text-green-600"
+            }`}>
+              {tx.type === "expense" ? "-" : "+"}₹
+              {Number(tx.amount).toLocaleString()}
+            </p>
           </div>
         ))}
+
       </main>
     </div>
   );
